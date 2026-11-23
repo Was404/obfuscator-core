@@ -1,20 +1,37 @@
-//! Обфускация одной функции в исходнике на C.
+//! Полиморфная обфускация одной функции в исходнике на C.
 //!
 //! Получив от инспектора имя функции (и её адрес/размер в ELF — они
 //! нужны, чтобы убедиться, что речь об интересующей нас функции),
 //! обфускатор находит её определение в исходнике (csource) и переписывает
-//! тело эквивалентными преобразованиями:
+//! тело эквивалентными преобразованиями. Ключевое свойство полиморфного
+//! режима: все решения принимает ГПСЧ, посеянный зерном (seed), поэтому
+//! каждый запуск создаёт НОВЫЙ вариант кода — с тем же поведением:
 //!
-//!   1. переименование локальных переменных и параметров — имя в
-//!      программе ничего не значит для машины, но мешает читать код;
-//!   2. разложение литералов 0 и 1 на выражения «(1 - 1)», «(2 - 1)»;
-//!   3. вставка мёртвого кода — блока под изменяемым флагом, значение
-//!      которого всегда нуль: никогда не выполняется, но компилятор не
-//!      может его выбросить, поэтому функция в ELF вырастает.
+//!   1. переименование локальных переменных и параметров — имя берётся
+//!      из пула случайных «безликих» имён, уникальное для этого запуска;
+//!   2. разложение десятичных литералов на случайные выражения
+//!      («(a ^ b)», «(a + b)», «(a - b)», «(a * b ± c)», «(a << k) + b»):
+//!      форма, константы и глубина вложенности (до трёх слоёв) случайны;
+//!   3. вставка мёртвых блоков двух семейств: с volatile-флагом, который
+//!      всегда равен нулю, и под непрозрачным предикатом «p*(p+1) всегда
+//!      чётно» — ветвь никогда не выполняется, но компилятор не может её
+//!      выбросить, поэтому функция в ELF вырастает;
+//!   4. безвредные блоки под всегда истинным предикатом «v*v+v чётно»;
+//!   5. мусорные комментарии и случайный порядок вставок — меняют
+//!      «облик» файла, не трогая семантику.
 //!
-//! Все преобразования сохраняют поведение программы. Токенизатор
-//! пропускает строки, символьные литералы и комментарии, поэтому
-//! содержимое «printf("%d", 0)» не искажается.
+//! Эквивалентность гарантируется построением: каждая замена заменяет
+//! выражение арифметически равным, мёртвый код не выполняется вовсе,
+//! а «живой» блок под истинным предикатом пишет только в собственную
+//! локальную переменную. Зерно можно зафиксировать ключом -s: одинаковый
+//! seed → одинаковый результат (воспроизводимость для отладки), разные
+//! seed → непохожие варианты (полиморфизм).
+//!
+//! Токенизатор пропускает строки, символьные литералы и комментарии,
+//! поэтому содержимое «printf("%d", 0)» не искажается; препроцессорные
+//! строки (#include, #if) не трогаются вовсе.
+
+use std::collections::HashSet;
 
 use crate::csource::{self, CSpan};
 
@@ -39,12 +56,297 @@ pub struct ObfResult {
     pub renames: Vec<(String, String)>,
     /// Сколько вхождений идентификаторов заменено.
     pub rename_hits: usize,
-    /// Сколько литералов 0/1 разложено на выражения.
+    /// Сколько литералов разложено на выражения.
     pub const_hits: usize,
-    /// Сколько вставлено мёртвых блоков.
+    /// Сколько вставлено мёртвых блоков (не выполняются никогда).
     pub dead_blocks: usize,
+    /// Сколько вставлено безвредных блоков под истинным предикатом.
+    pub opaque_blocks: usize,
+    /// Сколько вставлено мусорных комментариев.
+    pub junk_comments: usize,
+    /// Зерно ГПСЧ, на котором построен именно этот вариант.
+    pub seed: u64,
     /// Где функция находится в новом файле.
     pub new_span: CSpan,
+}
+
+// ── Полиморфное ядро: ГПСЧ ─────────────────────────────────────────
+
+/// Зерно по умолчанию: наносекунды системных часов, смешанные с PID.
+/// Два запуска в одну наносекунду в одном процессе не встречаются на
+/// практике, поэтому каждый прогон конвейера получает новое зерно.
+pub fn random_seed() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0x5EED_C0FF_EE5E_ED5);
+    let pid = u64::from(std::process::id());
+    nanos.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ pid.rotate_left(32)
+}
+
+/// Разбор зерна из аргумента командной строки: десятичное или 0x-hex.
+pub fn parse_seed(s: &str) -> Option<u64> {
+    if let Some(h) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        u64::from_str_radix(h, 16).ok()
+    } else {
+        s.parse::<u64>().ok()
+    }
+}
+
+/// SplitMix64 — компактный и качественный ГПСЧ без внешних крейтов.
+/// Одного u64-состояния хватает на весь прогон обфускации.
+struct Rng(u64);
+
+impl Rng {
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// Случайное число из [lo, hi] включительно.
+    fn range(&mut self, lo: u64, hi: u64) -> u64 {
+        debug_assert!(lo <= hi);
+        lo + self.next_u64() % (hi - lo + 1)
+    }
+
+    /// Выпадение с вероятностью pct процентов.
+    fn chance(&mut self, pct: u64) -> bool {
+        self.range(1, 100) <= pct
+    }
+
+    /// Случайный элемент среза.
+    fn pick<'a, T>(&mut self, xs: &'a [T]) -> &'a T {
+        &xs[self.range(0, xs.len() as u64 - 1) as usize]
+    }
+
+    /// Четыре hex-цифры — строительный блок имён.
+    fn hex4(&mut self) -> String {
+        format!("{:04x}", self.next_u64() & 0xFFFF)
+    }
+}
+
+// ── Полиморфное ядро: случайные имена ──────────────────────────────
+
+/// Префиксы «безликих» имён переменных: не раскрывают смысла и при
+/// этом похожи на обычный код.
+const NAME_PRE: &[&str] = &[
+    "var", "tmp", "val", "buf", "aux", "dat", "ndx", "ptr", "cnt", "res", "obf",
+];
+/// Буквы для коротких имён вида «q42», «z7».
+const NAME_LET: &[char] = &['a', 'b', 'q', 'v', 'w', 'x', 'z'];
+/// Префиксы имён для мёртвого кода: по ним видно, что блок служебный.
+const DEAD_PRE: &[&str] = &[
+    "obf_gate", "obf_sink", "dead", "junk", "scratch", "spare", "unused",
+];
+
+/// Случайное «безликое» имя одного из пяти стилей; имя проверяется на
+/// уникальность по множеству занятых и сразу туда заносится. Одинаковое
+/// зерно → одинаковые имена, разное → полностью другие.
+fn poly_name(rng: &mut Rng, used: &mut HashSet<String>) -> String {
+    for _ in 0..64 {
+        let cand = match rng.range(0, 4) {
+            0 => format!("obf_v_{}", rng.hex4()),
+            1 => format!(
+                "{}{}{}",
+                rng.pick(NAME_LET),
+                rng.pick(NAME_LET),
+                rng.range(1, 99)
+            ),
+            2 => format!("_x{}", rng.hex4()),
+            3 => format!("{}_{}", rng.pick(NAME_PRE), rng.range(0, 999)),
+            _ => format!("{}{}", rng.pick(NAME_LET), rng.range(1, 9999)),
+        };
+        if !used.contains(&cand) {
+            used.insert(cand.clone());
+            return cand;
+        }
+    }
+    // Практически недостижимый запасной путь: добираем «_», пока свободно.
+    let mut cand = format!("obf_v_{}", rng.hex4());
+    while used.contains(&cand) {
+        cand.push('_');
+    }
+    used.insert(cand.clone());
+    cand
+}
+
+/// Случайное имя для мёртвого кода: префикс из служебного пула + hex.
+fn dead_name(rng: &mut Rng, used: &mut HashSet<String>) -> String {
+    for _ in 0..64 {
+        let cand = format!("{}_{}", rng.pick(DEAD_PRE), rng.hex4());
+        if !used.contains(&cand) {
+            used.insert(cand.clone());
+            return cand;
+        }
+    }
+    let mut cand = format!("obf_gate_{}", rng.hex4());
+    while used.contains(&cand) {
+        cand.push('_');
+    }
+    used.insert(cand.clone());
+    cand
+}
+
+// ── Полиморфное ядро: разложение литералов ─────────────────────────
+
+/// Случайное выражение на C, значение которого равно n. depth — сколько
+/// слоёв вложенности разрешено (0 — просто число); константы каждого
+/// слоя сами разлагаются на следующем, поэтому варианты глубоко
+/// различаются между запусками. Все формы арифметически точны.
+fn lit_expr(rng: &mut Rng, n: u64, depth: u32) -> String {
+    if depth == 0 {
+        return n.to_string();
+    }
+    match rng.range(0, 5) {
+        // n = a ^ b, где b = n ^ a — точно для любого n, включая 0 и 1.
+        0 => {
+            let a = rng.range(1, 0xFFFF);
+            let b = n ^ a;
+            let (ta, tb) = two_slots(rng, a, b, depth - 1);
+            format!("({ta} ^ {tb})")
+        }
+        // n = a + b, a выбирается внутри [0, n].
+        1 => {
+            let a = if n == 0 { 0 } else { rng.range(0, n) };
+            let b = n - a;
+            let (ta, tb) = two_slots(rng, a, b, depth - 1);
+            format!("({ta} + {tb})")
+        }
+        // n = a - b, где a = n + b; при переполнении откат на xor-форму.
+        2 => {
+            let b = rng.range(1, 0x0800);
+            match n.checked_add(b) {
+                Some(a) => {
+                    let (ta, tb) = two_slots(rng, a, b, depth - 1);
+                    format!("({ta} - {tb})")
+                }
+                None => {
+                    let a = 0x2B;
+                    let (ta, tb) = two_slots(rng, a, n ^ a, depth - 1);
+                    format!("({ta} ^ {tb})")
+                }
+            }
+        }
+        // n = a*b + c либо a*b - c — работает для любого n.
+        3 => {
+            let a = rng.range(2, 12);
+            let b = rng.range(2, 12);
+            let p = a * b;
+            let (ta, tb) = two_slots(rng, a, b, depth - 1);
+            if p <= n {
+                let tc = lit_expr(rng, n - p, depth - 1);
+                format!("({ta} * {tb} + {tc})")
+            } else {
+                let tc = lit_expr(rng, p - n, depth - 1);
+                format!("({ta} * {tb} - {tc})")
+            }
+        }
+        // n = (a << k) + b, где a = n >> k, b = n & ((1 << k) - 1).
+        _ => {
+            let k = rng.range(0, 3);
+            let mask = (1u64 << k) - 1;
+            let a = n >> k;
+            let b = n & mask;
+            let (ta, tb) = two_slots(rng, a, b, depth - 1);
+            let tk = lit_expr(rng, k, depth - 1);
+            format!("(({ta} << {tk}) + {tb})")
+        }
+    }
+}
+
+/// Тексты для двух позиций со значениями va и vb. Когда значения равны
+/// (например, «(t - t)» или «(t ^ t)» для нуля), текст обязан быть
+/// ОДНИМ И ТЕМ ЖЕ: две независимые развертки одной константы дали бы
+/// разные выражения и разрушили равенство.
+fn two_slots(rng: &mut Rng, va: u64, vb: u64, depth: u32) -> (String, String) {
+    if va == vb {
+        let t = lit_expr(rng, va, depth);
+        (t.clone(), t)
+    } else {
+        (lit_expr(rng, va, depth), lit_expr(rng, vb, depth))
+    }
+}
+
+// ── Полиморфное ядро: мёртвые и безвредные блоки ───────────────────
+
+/// Мёртвый блок семейства A: ветвь под volatile-флагом, который в любой
+/// точке программы равен нулю, поэтому тело никогда не выполняется, но
+/// компилятор обязан его сохранить — функция в ELF растёт. Все константы
+/// внутри уже разложены случайно, имена и форма уникальны для запуска.
+fn dead_block_volatile(rng: &mut Rng, used: &mut HashSet<String>) -> String {
+    let gate = dead_name(rng, used);
+    let sink = dead_name(rng, used);
+    let e0 = lit_expr(rng, 0, 1); // значение флага: выражение, равное 0
+    let c0 = rng.range(0x10, 0xFFFF);
+    let s0 = lit_expr(rng, c0, 1);
+    let c1 = rng.range(0x100, 0xFFFF);
+    let e1 = lit_expr(rng, c1, 1);
+    let c2 = rng.range(0x100, 0xFFFF);
+    let e2 = lit_expr(rng, c2, 1);
+    format!(
+        "\n    /* мёртвый код: volatile-флаг всегда 0, тело не выполняется */\n    static volatile long {gate} = {e0};\n    if ({gate}) {{\n        static long {sink} = {s0};\n        {sink} += {e1};\n        {sink} ^= {e2};\n    }}",
+        gate = gate,
+        e0 = e0,
+        sink = sink,
+        s0 = s0,
+        e1 = e1,
+        e2 = e2,
+    )
+}
+
+/// Мёртвый блок семейства B: ветвь под непрозрачным предикатом.
+/// Произведение двух последовательных целых p*(p+1) всегда чётно,
+/// поэтому «% 2 != 0» ложно при любом значении p — тело недостижимо.
+/// Анализатор же видит зависимость от переменной и обязан её разбирать.
+fn dead_block_predicate(rng: &mut Rng, used: &mut HashSet<String>) -> String {
+    let p = dead_name(rng, used);
+    let sink = dead_name(rng, used);
+    let cv = rng.range(0x100, 0xFFFF);
+    let ev = lit_expr(rng, cv, 1);
+    let c1 = rng.range(0x10, 0xFFFF);
+    let j1 = lit_expr(rng, c1, 2);
+    let c2 = rng.range(0x01, 0x0FFF);
+    let j2 = lit_expr(rng, c2, 1);
+    format!(
+        "\n    /* мёртвая ветвь: p*(p+1) всегда чётно, условие ложно */\n    long {p} = {ev};\n    if ((({p} * ({p} + 1)) % 2) != 0) {{\n        long {sink} = {j1};\n        {sink} ^= {j2};\n        (void){sink};\n    }}",
+        p = p,
+        ev = ev,
+        sink = sink,
+        j1 = j1,
+        j2 = j2,
+    )
+}
+
+/// Безвредный блок под всегда ИСТИННЫМ предикатом: v*v+v — тоже
+/// произведение последовательных целых, всегда чётно. Тело выполняется,
+/// но пишет только в собственную локальную переменную, поэтому поведение
+/// программы не меняется. Такие блоки маскируют реальную логику.
+fn opaque_block_always_true(rng: &mut Rng, used: &mut HashSet<String>) -> String {
+    let p = dead_name(rng, used);
+    let sink = dead_name(rng, used);
+    let cv = rng.range(0x100, 0xFFFF);
+    let ev = lit_expr(rng, cv, 1);
+    let c1 = rng.range(0x10, 0xFFFF);
+    let j1 = lit_expr(rng, c1, 2);
+    let c2 = rng.range(0x01, 0x0FFF);
+    let j2 = lit_expr(rng, c2, 1);
+    format!(
+        "\n    /* всегда истинно: v*v+v чётно; блок безвреден */\n    long {p} = {ev};\n    if ((({p} * {p} + {p}) % 2) == 0) {{\n        long {sink} = {j1};\n        {sink} = {sink} ^ {j2};\n        (void){sink};\n    }}",
+        p = p,
+        ev = ev,
+        sink = sink,
+        j1 = j1,
+        j2 = j2,
+    )
+}
+
+/// Мусорный комментарий: меняет облик файла, компилятор его игнорирует.
+fn junk_comment(rng: &mut Rng) -> String {
+    format!("\n    /* {:#08x} */", rng.next_u64() & 0xFFFFFF)
 }
 
 // ── Токены ─────────────────────────────────────────────────────────
@@ -108,7 +410,7 @@ fn tokenize(s: &str) -> Vec<Tok> {
         // уйдёт в ветку идентификаторов (цифра тоже «буква» по is_ident).
         if c.is_ascii_digit() {
             // Число целиком: 0, 10, 0x1F, 1.5, 5ULL — чтобы заменять
-            // только отдельные литералы 0 и 1, а не цифры внутри чисел.
+            // только отдельные литералы, а не цифры внутри чисел.
             let st = i;
             while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'.' || b[i] == b'_') {
                 i += 1;
@@ -312,39 +614,37 @@ fn collect_locals(text: &str, toks: &[Tok], func_name: &str) -> Vec<String> {
     decls
 }
 
-// ── Детерминированный «хеш» имени ──────────────────────────────────
-
-/// FNV-1a, младшие 4 hex-цифры: имена обфускации получаются разными
-/// для разных переменных, но одинаковыми при повторных запусках.
-fn hash4(name: &str) -> String {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in name.bytes() {
-        h ^= byte as u64;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    format!("{:04x}", (h & 0xffff) as u16)
-}
-
 // ── Основная функция модуля ────────────────────────────────────────
 
-/// Обфускация функции `func` в исходнике `src`. Возвращает новый текст
-/// файла и отчёт о сделанных заменах.
-pub fn obfuscate(src: &str, func: &str) -> Result<ObfResult, String> {
+/// Полиморфная обфускация функции `func` в исходнике `src`.
+///
+/// `seed` — зерно ГПСЧ: `None` → случайное зерно от системных часов
+/// (новый вариант при каждом запуске), `Some(n)` → воспроизводимый
+/// вариант (одинаковое n даёт побайтово одинаковый результат).
+/// Возвращает новый текст файла и отчёт о сделанных заменах.
+pub fn obfuscate(src: &str, func: &str, seed: Option<u64>) -> Result<ObfResult, String> {
+    let seed = seed.unwrap_or_else(random_seed);
+    let mut rng = Rng(seed);
+
     // Шаг 1: находим определение функции в исходнике.
     let span = csource::find_function(src, func)
         .ok_or_else(|| format!("функция «{}» не найдена в исходнике", func))?;
     let text = &src[span.start..span.end];
     let toks = tokenize(text);
 
-    // Шаг 2: локальные переменные и параметры → новые имена.
+    // Резерв имён: все идентификаторы функции — новые имена не должны
+    // совпасть ни с одним из них, ни между собой.
+    let mut used: HashSet<String> = toks
+        .iter()
+        .filter(|t| t.kind == TokKind::Ident)
+        .map(|t| t.text(text).to_string())
+        .collect();
+
+    // Шаг 2: локальные переменные и параметры → случайные имена.
     let locals = collect_locals(text, &toks, func);
     let mut map: Vec<(String, String)> = Vec::new();
-    for (i, old) in locals.iter().enumerate() {
-        let mut new = format!("obf_{}_{}", i, hash4(old));
-        // Новое имя не должно совпадать ни с одним идентификатором функции.
-        while toks.iter().any(|t| t.kind == TokKind::Ident && t.text(text) == new) {
-            new.push('_');
-        }
+    for old in &locals {
+        let new = poly_name(&mut rng, &mut used);
         map.push((old.clone(), new));
     }
 
@@ -361,21 +661,27 @@ pub fn obfuscate(src: &str, func: &str) -> Result<ObfResult, String> {
             rename_hits += 1;
         }
     }
+
+    // Шаг 3b: разложение литералов. Кандидат — чисто десятичный литерал
+    // (0x1F, 1.5 и 10L не трогаем); с вероятностью 15 % литерал
+    // пропускается, поэтому и состав замен меняется от запуска к запуску.
     let mut const_hits = 0usize;
     for t in &toks {
         if t.kind != TokKind::Number {
             continue;
         }
-        // Отдельные литералы 0 и 1 превращаем в выражения.
-        let rep = match t.text(text) {
-            "0" => Some("(1 - 1)"),
-            "1" => Some("(2 - 1)"),
-            _ => None,
-        };
-        if let Some(rep) = rep {
-            edits.push((t.start, t.end, rep.to_string()));
-            const_hits += 1;
+        let s = t.text(text);
+        if !s.bytes().all(|c| c.is_ascii_digit()) {
+            continue;
         }
+        let Ok(n) = s.parse::<u64>() else { continue };
+        if !rng.chance(85) {
+            continue; // этот литерал остался как есть — полиморфизм интенсивности
+        }
+        let depth = *rng.pick(&[1u32, 1, 1, 2, 2, 3]);
+        let rep = lit_expr(&mut rng, n, depth);
+        edits.push((t.start, t.end, rep));
+        const_hits += 1;
     }
 
     // Применяем замены с конца, чтобы смещения не поехали.
@@ -385,20 +691,61 @@ pub fn obfuscate(src: &str, func: &str) -> Result<ObfResult, String> {
         new_text.replace_range(s..e, rep);
     }
 
-    // Шаг 4: мёртвый код — блок с изменяемым флагом, который всегда
-    // равен нулю. volatile запрещает компилятору выбросить блок даже
-    // на -O0, поэтому функция в ELF реально вырастает; выполняться
-    // блок всё равно никогда не будет.
-    let body_open = new_text.find('{').ok_or("в функции не найдена открывающая скобка")?;
-    let h = hash4(func);
-    let gate = format!("obf_gate_{}", h);
-    let sink = format!("obf_sink_{}", h);
-    let dead = format!(
-        "\n    static volatile long {} = 0; if ({}) {{ static long {}; {} += (0x5A5A ^ 0x1234) - (0x4B4B ^ 0x0F0F); }} /* dead code: gate всегда 0 */",
-        gate, gate, sink, sink
-    );
-    new_text.insert_str(body_open + 1, &dead);
-    let dead_blocks = 1usize;
+    // Шаг 4: вставки после «{» тела функции. Позицию ищем заново в
+    // new_text: замены шага 3 (разложения литералов) меняют длины, поэтому
+    // координаты исходных токенов больше не годятся. «{» после «)» — это
+    // именно тело функции, а не initializer списка вроде «int a[] = {…}».
+    let new_toks = tokenize(&new_text);
+    let body_at = new_toks
+        .iter()
+        .enumerate()
+        .find(|&(k, t)| {
+            t.kind == TokKind::Other
+                && t.text(&new_text) == "{"
+                && k > 0
+                && new_toks[k - 1].kind == TokKind::Other
+                && new_toks[k - 1].text(&new_text) == ")"
+        })
+        .map(|(_, t)| t.end)
+        .ok_or("в функции не найдено тело («{» после «)»)")?;
+
+    // Мёртвые блоки (1–3) и безвредные блоки (0–2) — семейство и
+    // константы каждого выбираются ГПСЧ; мусорные комментарии (0–2)
+    // добавляют разброса внешнему виду. Порядок вставок перемешивается.
+    let mut inserts: Vec<String> = Vec::new();
+    let mut dead_blocks = 0usize;
+    let mut opaque_blocks = 0usize;
+    for _ in 0..rng.range(1, 3) {
+        inserts.push(match rng.range(0, 1) {
+            0 => {
+                dead_blocks += 1;
+                dead_block_volatile(&mut rng, &mut used)
+            }
+            _ => {
+                dead_blocks += 1;
+                dead_block_predicate(&mut rng, &mut used)
+            }
+        });
+    }
+    for _ in 0..rng.range(0, 2) {
+        opaque_blocks += 1;
+        inserts.push(opaque_block_always_true(&mut rng, &mut used));
+    }
+    let mut junk_comments = 0usize;
+    for _ in 0..rng.range(0, 2) {
+        junk_comments += 1;
+        inserts.push(junk_comment(&mut rng));
+    }
+    // Фишер–Йетс: случайный порядок вставок.
+    for i in (1..inserts.len()).rev() {
+        let j = rng.range(0, i as u64) as usize;
+        inserts.swap(i, j);
+    }
+    let mut at = body_at;
+    for ins in &inserts {
+        new_text.insert_str(at, ins);
+        at += ins.len();
+    }
 
     // Шаг 5: собираем новый файл целиком и перепроверяем разбор.
     let mut new_source = String::with_capacity(src.len());
@@ -414,6 +761,9 @@ pub fn obfuscate(src: &str, func: &str) -> Result<ObfResult, String> {
         rename_hits,
         const_hits,
         dead_blocks,
+        opaque_blocks,
+        junk_comments,
+        seed,
         new_span,
     })
 }
