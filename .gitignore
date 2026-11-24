@@ -3,3 +3,6 @@
 error_log.txt
 log.txt
 samples/demo_obf.c
+.obf-build/
+
+samples/.obf-build/
