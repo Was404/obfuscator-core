@@ -1,0 +1,202 @@
+════════════════════════════════════════════════
+ Инспектор ELF: /bin/cat
+════════════════════════════════════════════════
+
+─── ELF-ЗАГОЛОВОК ───
+  Магия:                7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+  Класс:                ELF64 (64 бита)
+  Порядок байт:         младший (little-endian)
+  Версия ELF:           1
+  OS/ABI:               UNIX — System V
+  Версия ABI:           0
+  Тип файла:            DYN — разделяемый объект (PIE или .so)
+  Архитектура:          X86-64 (AMD / Intel 64)
+  Точка входа:          0x00000000000034a0
+  Смещение PH:          0x0000000000000040 (15 записей по 56 байт)
+  Смещение SH:          0x000000000000c238 (29 записей по 64 байта)
+  Флаги процессора:     0x0000000000000000
+  Размер заголовка:     64 байт
+  Индекс shstrtab:      28
+
+─── ПРОГРАММНЫЕ ЗАГОЛОВКИ (СЕГМЕНТЫ) ───
+  Всего сегментов: 15
+    № Тип            Смещение           Вирт. адрес        Файл, байт Память, байт Флаги  Выравн.
+    0 PHDR           0x0000000000000040 0x0000000000000040        840        840 R--   0x0000000000000008
+    1 INTERP         0x00000000000003ac 0x00000000000003ac         28         28 R--   0x0000000000000001
+    2 LOAD           0x0000000000000000 0x0000000000000000       6296       6296 R--   0x0000000000001000
+    3 LOAD           0x0000000000002000 0x0000000000002000      26545      26545 R-E   0x0000000000001000
+    4 LOAD           0x0000000000009000 0x0000000000009000       9104       9104 R--   0x0000000000001000
+    5 LOAD           0x000000000000b9f0 0x000000000000c9f0       1780       2288 RW-   0x0000000000001000
+    6 DYNAMIC        0x000000000000bbd8 0x000000000000cbd8        480        480 RW-   0x0000000000000008
+    7 NOTE           0x0000000000000388 0x0000000000000388         36         36 R--   0x0000000000000004
+    8 NOTE           0x000000000000b320 0x000000000000b320         80         80 R--   0x0000000000000008
+    9 NOTE           0x000000000000b370 0x000000000000b370         32         32 R--   0x0000000000000004
+   10 GNU_PROPERTY   0x000000000000b320 0x000000000000b320         80         80 R--   0x0000000000000008
+   11 GNU_EH_FRAME   0x0000000000009ed0 0x0000000000009ed0        964        964 R--   0x0000000000000004
+   12 НЕИЗВ_0x6474e554 0x000000000000b2b0 0x000000000000b2b0         78         78 R--   0x0000000000000008
+   13 GNU_STACK      0x0000000000000000 0x0000000000000000          0          0 RW-   0x0000000000000010
+   14 GNU_RELRO      0x000000000000b9f0 0x000000000000c9f0       1552       1552 R--   0x0000000000000001
+  (флаги: R — чтение, W — запись, E — исполнение)
+
+─── ИНТЕРПРЕТАТОР ───
+  /lib64/ld-linux-x86-64.so.2 (динамический бинарник)
+
+─── ЗАГОЛОВКИ СЕКЦИЙ ───
+  Всего секций: 29
+  [  №] Имя               Тип            Адрес              Смещение              Размер  Эл-т  Выр. Флаги
+  [  0]                   NULL           0x0000000000000000 0x0000000000000000         0     0     0 -
+  [  1] .note.gnu.build-id NOTE           0x0000000000000388 0x0000000000000388        36     0     4 ALLOC
+  [  2] .interp           PROGBITS       0x00000000000003ac 0x00000000000003ac        28     0     1 ALLOC
+  [  3] .gnu.hash         GNU_HASH       0x00000000000003c8 0x00000000000003c8       148     0     8 ALLOC
+  [  4] .dynsym           DYNSYM         0x0000000000000460 0x0000000000000460      1968    24     8 ALLOC
+  [  5] .dynstr           STRTAB         0x0000000000000c10 0x0000000000000c10      1038     0     1 ALLOC
+  [  6] .gnu.version      GNU_VERSYM     0x000000000000101e 0x000000000000101e       164     2     2 ALLOC
+  [  7] .gnu.version_r    GNU_VERNEED    0x00000000000010c8 0x00000000000010c8       192     0     8 ALLOC
+  [  8] .rela.dyn         RELA           0x0000000000001188 0x0000000000001188      1776    24     8 ALLOC
+  [  9] .relr.dyn         НЕИЗВ_0x13     0x0000000000001878 0x0000000000001878        32     8     8 ALLOC
+  [ 10] .init             PROGBITS       0x0000000000002000 0x0000000000002000        27     0     4 ALLOC|EXEC
+  [ 11] .text             PROGBITS       0x0000000000002040 0x0000000000002040     26467     0    64 ALLOC|EXEC
+  [ 12] .fini             PROGBITS       0x00000000000087a4 0x00000000000087a4        13     0     4 ALLOC|EXEC
+  [ 13] .rodata           PROGBITS       0x0000000000009000 0x0000000000009000      3791     0    32 ALLOC
+  [ 14] .eh_frame_hdr     PROGBITS       0x0000000000009ed0 0x0000000000009ed0       964     0     4 ALLOC
+  [ 15] .eh_frame         PROGBITS       0x000000000000a298 0x000000000000a298      4120     0     8 ALLOC
+  [ 16] .sframe           НЕИЗВ_0x6ffffff4 0x000000000000b2b0 0x000000000000b2b0        78     0     8 ALLOC
+  [ 17] .note.gnu.property NOTE           0x000000000000b320 0x000000000000b320        80     0     8 ALLOC
+  [ 18] .note.ABI-tag     NOTE           0x000000000000b370 0x000000000000b370        32     0     4 ALLOC
+  [ 19] .init_array       INIT_ARRAY     0x000000000000c9f0 0x000000000000b9f0         8     8     8 WRITE|ALLOC
+  [ 20] .fini_array       FINI_ARRAY     0x000000000000c9f8 0x000000000000b9f8         8     8     8 WRITE|ALLOC
+  [ 21] .data.rel.ro      PROGBITS       0x000000000000ca00 0x000000000000ba00       472     0    32 WRITE|ALLOC
+  [ 22] .dynamic          DYNAMIC        0x000000000000cbd8 0x000000000000bbd8       480    16     8 WRITE|ALLOC
+  [ 23] .got              PROGBITS       0x000000000000cdb8 0x000000000000bdb8       576     8     8 WRITE|ALLOC
+  [ 24] .data             PROGBITS       0x000000000000d000 0x000000000000c000       228     0    32 WRITE|ALLOC
+  [ 25] .bss              NOBITS         0x000000000000d100 0x000000000000c0e4       480     0    32 WRITE|ALLOC
+  [ 26] .comment          PROGBITS       0x0000000000000000 0x000000000000c0e4        27     1     1 MERGE|STRINGS
+  [ 27] .gnu_debuglink    PROGBITS       0x0000000000000000 0x000000000000c100        16     0     4 -
+  [ 28] .shstrtab         STRTAB         0x0000000000000000 0x000000000000c110       289     0     1 -
+
+─── СТРОКОВЫЕ ТАБЛИЦЫ ───
+  [  5] .dynstr    размер    1038 байт, строк:   90 — имена символов .dynsym и зависимостей
+  [ 28] .shstrtab  размер     289 байт, строк:   28 — имена секций
+
+─── ТАБЛИЦА СИМВОЛОВ .symtab ───
+  Таблица отсутствует (0 записей).
+
+─── ТАБЛИЦА СИМВОЛОВ .dynsym ───
+     № Значение             Размер Тип       Связка   Видимость  Секция          Имя
+     0 0x0000000000000000        0 NOTYPE    LOCAL    DEFAULT    UND (внешний)   
+     1 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   getenv
+     2 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   free
+     3 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __vfprintf_chk
+     4 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __libc_start_main
+     5 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   abort
+     6 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __errno_location
+     7 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strncmp
+     8 0x0000000000000000        0 NOTYPE    WEAK     DEFAULT    UND (внешний)   _ITM_deregisterTMCloneTable
+     9 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   splice
+    10 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   _exit
+    11 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __fpending
+    12 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fcntl
+    13 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   clearerr_unlocked
+    14 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   write
+    15 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __fpurge
+    16 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   textdomain
+    17 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fclose
+    18 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   bindtextdomain
+    19 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   stpcpy
+    20 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   dcgettext
+    21 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __ctype_get_mb_cur_max
+    22 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strlen
+    23 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __stack_chk_fail
+    24 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   getopt_long
+    25 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strchr
+    26 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __overflow
+    27 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strrchr
+    28 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   lseek
+    29 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __assert_fail
+    30 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   memset
+    31 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   ioctl
+    32 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   copy_file_range
+    33 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   close
+    34 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   mbrtoc32
+    35 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   pipe
+    36 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strspn
+    37 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   posix_fadvise
+    38 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strcspn
+    39 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   read
+    40 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   memcmp
+    41 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fputs_unlocked
+    42 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   calloc
+    43 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strcmp
+    44 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fputc_unlocked
+    45 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __memcpy_chk
+    46 0x0000000000000000        0 NOTYPE    WEAK     DEFAULT    UND (внешний)   __gmon_start__
+    47 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   memcpy
+    48 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fileno
+    49 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   strerror_r
+    50 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   malloc
+    51 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   nl_langinfo
+    52 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fwrite_unlocked
+    53 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   realloc
+    54 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   setlocale
+    55 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __printf_chk
+    56 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   memmove
+    57 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   open
+    58 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __cxa_atexit
+    59 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   getpagesize
+    60 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   exit
+    61 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __fprintf_chk
+    62 0x0000000000000000        0 NOTYPE    WEAK     DEFAULT    UND (внешний)   _ITM_registerTMCloneTable
+    63 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   aligned_alloc
+    64 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fflush_unlocked
+    65 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   mbsinit
+    66 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   iswprint
+    67 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   fstat
+    68 0x0000000000000000        0 FUNC      WEAK     DEFAULT    UND (внешний)   __cxa_finalize
+    69 0x0000000000000000        0 FUNC      GLOBAL   DEFAULT    UND (внешний)   __ctype_b_loc
+    70 0x000000000000d100        8 OBJECT    GLOBAL   DEFAULT    .bss            __progname
+    71 0x000000000000d110        4 OBJECT    GLOBAL   DEFAULT    .bss            optind
+    72 0x000000000000d118        8 OBJECT    WEAK     DEFAULT    .bss            program_invocation_name
+    73 0x000000000000d118        8 OBJECT    GLOBAL   DEFAULT    .bss            __progname_full
+    74 0x000000000000d120        8 OBJECT    GLOBAL   DEFAULT    .bss            stderr
+    75 0x000000000000d100        8 OBJECT    WEAK     DEFAULT    .bss            program_invocation_short_name
+    76 0x000000000000d168        4 OBJECT    GLOBAL   DEFAULT    .bss            error_one_per_line
+    77 0x00000000000023a7      159 FUNC      GLOBAL   DEFAULT    .text           error_at_line
+    78 0x00000000000021f3      173 FUNC      GLOBAL   DEFAULT    .text           error
+    79 0x000000000000d16c        4 OBJECT    GLOBAL   DEFAULT    .bss            error_message_count
+    80 0x000000000000d170        8 OBJECT    GLOBAL   DEFAULT    .bss            error_print_progname
+    81 0x000000000000d108        8 OBJECT    GLOBAL   DEFAULT    .bss            stdout
+
+─── ДИНАМИЧЕСКАЯ СЕКЦИЯ (.dynamic) ───
+  Записей: 25
+  Метка            Значение           Расшифровка
+  DT_NEEDED        0x0000000000000340 libc.so.6
+  DT_INIT          0x0000000000002000 
+  DT_FINI          0x00000000000087a4 
+  DT_INIT_ARRAY    0x000000000000c9f0 
+  DT_INIT_ARRAYSZ  0x0000000000000008 
+  DT_FINI_ARRAY    0x000000000000c9f8 
+  DT_FINI_ARRAYSZ  0x0000000000000008 
+  DT_GNU_HASH      0x00000000000003c8 
+  DT_STRTAB        0x0000000000000c10 
+  DT_SYMTAB        0x0000000000000460 
+  DT_STRSZ         0x000000000000040e 
+  DT_SYMENT        0x0000000000000018 
+  DT_DEBUG         0x0000000000000000 
+  DT_RELA          0x0000000000001188 
+  DT_RELASZ        0x00000000000006f0 
+  DT_RELAENT       0x0000000000000018 
+  DT_FLAGS         0x0000000000000008 BIND_NOW
+  DT_FLAGS_1       0x0000000008000001 NOW|PIE
+  DT_VERNEED       0x00000000000010c8 
+  DT_VERNEEDNUM    0x0000000000000001 
+  DT_VERSYM        0x000000000000101e 
+  0x24             0x0000000000001878 
+  0x23             0x0000000000000020 
+  0x25             0x0000000000000008 
+  DT_NULL          0x0000000000000000 
+  Зависимости (DT_NEEDED):
+    - libc.so.6
+
+Кандидаты на обфускацию:
+  error                @ 0x21f3   173 байт  секция .text
+  error_at_line        @ 0x23a7   159 байт  секция .text
