@@ -94,6 +94,20 @@ pub struct Candidate {
     pub from_symtab: bool,
 }
 
+/// Есть ли у файла ELF-магия (\x7fELF в первых четырёх байтах)?
+///
+/// По этому признаку конвейер различает C-исходник (переписываем
+/// функцию в тексте) и готовый бинарник (обфусцируем байты). Файл без
+/// магии считается исходником; ошибка чтения — тоже «не ELF».
+pub fn is_elf(path: &str) -> bool {
+    use std::io::Read as _;
+    let mut buf = [0u8; 4];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut buf))
+        .map(|_| buf == [0x7f, b'E', b'L', b'F'])
+        .unwrap_or(false)
+}
+
 /// Инспектор: хранит разобранный ELF и печатает по нему отчёт.
 pub struct ElfInspector<'a> {
     /// Путь к файлу — нужен только для заголовка отчёта.
@@ -443,6 +457,11 @@ impl<'a> ElfInspector<'a> {
             // Остальные значения (адреса, размеры) оставляем в hex-колонке.
             _ => String::new(),
         }
+    }
+
+    /// Сколько секций в разобранном файле (для сравнения «до/после»).
+    pub fn section_count(&self) -> usize {
+        self.elf.section_headers.len()
     }
 
     /// Имя секции по её индексу (строка берётся из shstrtab).

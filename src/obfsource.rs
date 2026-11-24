@@ -97,10 +97,12 @@ pub fn parse_seed(s: &str) -> Option<u64> {
 
 /// SplitMix64 — компактный и качественный ГПСЧ без внешних крейтов.
 /// Одного u64-состояния хватает на весь прогон обфускации.
-struct Rng(u64);
+/// Публичный: им же пользуется байтовый обфускатор ELF (obfelf), чтобы
+/// оба режима были полиморфными на одном и том же ядре.
+pub struct Rng(pub u64);
 
 impl Rng {
-    fn next_u64(&mut self) -> u64 {
+    pub fn next_u64(&mut self) -> u64 {
         self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
         let mut z = self.0;
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -109,18 +111,18 @@ impl Rng {
     }
 
     /// Случайное число из [lo, hi] включительно.
-    fn range(&mut self, lo: u64, hi: u64) -> u64 {
+    pub fn range(&mut self, lo: u64, hi: u64) -> u64 {
         debug_assert!(lo <= hi);
         lo + self.next_u64() % (hi - lo + 1)
     }
 
     /// Выпадение с вероятностью pct процентов.
-    fn chance(&mut self, pct: u64) -> bool {
+    pub fn chance(&mut self, pct: u64) -> bool {
         self.range(1, 100) <= pct
     }
 
     /// Случайный элемент среза.
-    fn pick<'a, T>(&mut self, xs: &'a [T]) -> &'a T {
+    pub fn pick<'a, T>(&mut self, xs: &'a [T]) -> &'a T {
         &xs[self.range(0, xs.len() as u64 - 1) as usize]
     }
 
