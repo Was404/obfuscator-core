@@ -1,1 +1,78 @@
 
+running 29 tests
+test obfsource::tests::comment_is_opaque_and_hides_numbers ... ok
+test obfsource::tests::dead_name_uses_service_prefix ... ok
+test obfsource::tests::lit_expr_is_deterministic ... ok
+test obfsource::tests::multipart_numbers_are_single_tokens ... ok
+test obfsource::tests::lit_expr_varies_across_draws ... ok
+test obfsource::tests::number_inside_string_is_not_a_number_token ... ok
+test obfsource::tests::obfuscate_inserts_dead_code ... ok
+test obfsource::tests::obfuscate_preserves_includes_and_strings ... ok
+test obfsource::tests::obfuscate_different_seeds_different_output ... ok
+test obfsource::tests::obfuscate_result_reparses ... ok
+test obfsource::tests::obfuscate_same_seed_same_bytes ... ok
+test obfsource::tests::obfuscate_unknown_function_is_error ... ok
+test obfsource::tests::poly_name_is_deterministic_per_seed ... ok
+test obfsource::tests::preprocessor_line_marked_and_untouched ... ok
+test obfsource::tests::poly_name_respects_reserved_set ... ok
+test obfsource::tests::random_seed_differs_between_calls ... ok
+test obfsource::tests::poly_name_generates_unique_names ... ok
+test obfsource::tests::rng_range_stays_in_bounds ... ok
+test obfsource::tests::rng_chance_edges ... ok
+test obfsource::tests::seed_garbage_rejected ... ok
+test obfsource::tests::rng_pick_stays_in_slice ... ok
+test obfsource::tests::seed_hex_lowercase ... ok
+test obfsource::tests::seed_max_u64_accepted ... ok
+test obfsource::tests::rng_is_deterministic ... ok
+test obfsource::tests::seed_hex_uppercase_prefix ... ok
+test obfsource::tests::seed_overflow_rejected ... ok
+test obfsource::tests::two_slots_same_value_same_text ... ok
+test obfsource::tests::seed_decimal ... ok
+test obfsource::tests::lit_expr_balanced_parens_and_safe_alphabet ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 8 tests
+test parse_seed_accepts_both_forms ... ok
+test no_seed_produces_random_variants ... ok
+test random_seed_is_never_zero_repeats ... ok
+test preprocessor_lines_survive_verbatim ... ok
+test renames_cover_every_occurrence ... ok
+test result_reports_seed_and_stats ... ok
+test string_literals_survive_verbatim ... ok
+test same_seed_reproduces_same_file ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test stress_30_runs_equivalent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.55s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

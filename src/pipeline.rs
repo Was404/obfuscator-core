@@ -80,9 +80,12 @@ pub fn pick_candidate<'a>(
     best.ok_or_else(|| "в ELF нет подходящих функций (нет STT_FUNC с размером)".to_string())
 }
 
-/// Главная команда: obfuscator-core -obf demo.c [-f имя]
-pub fn run_obf(src_path: &str, want: Option<&str>) -> ExitCode {
-    println!("=== obfuscator-core: обфускация {} ===", src_path);
+/// Главная команда: obfuscator-core -obf demo.c [-f имя] [-s зерно]
+///
+/// `seed` — зерно ГПСЧ обфускации: None → случайное (новый вариант
+/// при каждом запуске), Some(n) → воспроизводимый вариант.
+pub fn run_obf(src_path: &str, want: Option<&str>, seed: Option<u64>) -> ExitCode {
+    println!("=== obfuscator-core: полиморфная обфускация {} ===", src_path);
 
     // ── Шаг 0. Проверяем исходник ──
     let src = match std::fs::read_to_string(src_path) {
@@ -164,7 +167,7 @@ pub fn run_obf(src_path: &str, want: Option<&str>) -> ExitCode {
     );
 
     // ── Шаг 4. Обфускатор: новый исходник с переписанной функцией ──
-    let result = match obfsource::obfuscate(&src, &chosen.name) {
+    let result = match obfsource::obfuscate(&src, &chosen.name, seed) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Обфускация не удалась: {}", e);
@@ -177,12 +180,18 @@ pub fn run_obf(src_path: &str, want: Option<&str>) -> ExitCode {
         return ExitCode::FAILURE;
     }
     println!("\n[4/6] Обфускатор создал «{}»:", obf_path);
+    println!(
+        "  зерно (seed): {} (0x{:016x}) — тот же seed даёт тот же файл, другой seed даёт другой вариант",
+        result.seed, result.seed
+    );
     println!("  переименований переменных: {} (вхождений: {})", result.renames.len(), result.rename_hits);
     for (old, new) in &result.renames {
         println!("    {} → {}", old, new);
     }
     println!("  литералов разложено: {}", result.const_hits);
     println!("  мёртвых блоков вставлено: {}", result.dead_blocks);
+    println!("  безвредных блоков под истинным предикатом: {}", result.opaque_blocks);
+    println!("  мусорных комментариев: {}", result.junk_comments);
 
     // ── Шаг 5. Компилируем и запускаем обе версии ──
     let obf_elf = build_dir.join(format!("{}_obf", stem)).to_string_lossy().into_owned();

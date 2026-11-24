@@ -21,18 +21,32 @@ static long sum_to(long n) {
 }
 
 /* Длина траектории Коллатца: сколько шагов нужно, чтобы n дошло до 1. */
-static long collatz_len(long obf_0_f871) {
-    static volatile long obf_gate_ae4c = 0; if (obf_gate_ae4c) { static long obf_sink_ae4c; obf_sink_ae4c += (0x5A5A ^ 0x1234) - (0x4B4B ^ 0x0F0F); } /* dead code: gate всегда 0 */
-    long obf_1_6d14 = (1 - 1);
-    while (obf_0_f871 != (2 - 1)) {
-        if (obf_0_f871 % 2 == (1 - 1)) {
-            obf_0_f871 = obf_0_f871 / 2;
-        } else {
-            obf_0_f871 = 3 * obf_0_f871 + (2 - 1);
-        }
-        obf_1_6d14 = obf_1_6d14 + (2 - 1);
+static long collatz_len(long var_261) {
+    /* мёртвая ветвь: p*(p+1) всегда чётно, условие ложно */
+    long junk_7326 = ((1442 << 3) + 3);
+    if (((junk_7326 * (junk_7326 + 1)) % 2) != 0) {
+        long unused_34b6 = ((9 * 2 - 15) * (1245 - 1233) + (47300 + 3091));
+        unused_34b6 ^= (298 + 3460);
+        (void)unused_34b6;
     }
-    return obf_1_6d14;
+    /* мёртвая ветвь: p*(p+1) всегда чётно, условие ложно */
+    long obf_gate_3def = (25209 ^ 5132);
+    if (((obf_gate_3def * (obf_gate_3def + 1)) % 2) != 0) {
+        long dead_064c = (((52031 ^ 65339) << (1306 - 1305)) + ((0 << 1) + 1));
+        dead_064c ^= (1395 + 2222);
+        (void)dead_064c;
+    }
+    /* 0xe7443f */
+    long wv72 = (1236 - 1236);
+    while (var_261 != (4 * 12 - 47)) {
+        if (var_261 % 2 == ((5514 + 4587) ^ (5514 + 4587))) {
+            var_261 = var_261 / (4 * 5 - 18);
+        } else {
+            var_261 = 3 * var_261 + ((15303 ^ 15309) * (5 + 7) - (12 * 3 + 83));
+        }
+        wv72 = wv72 + (((0 << 1) + 1) + ((0 << 2) + 0));
+    }
+    return wv72;
 }
 
 /* НОД двух чисел алгоритмом Евклида. */

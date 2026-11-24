@@ -3,6 +3,7 @@
 //! Пользователь пишет:
 //!   obfuscator-core -obf demo.c          — полная обфускация с проверкой
 //!   obfuscator-core -obf demo.c -f gcd   — та же, но функцию выбирает он сам
+//!   obfuscator-core -obf demo.c -s 42    — воспроизводимый вариант обфускации
 //!   obfuscator-core inspect demo.c       — полный отчёт инспектора по ELF
 //!   obfuscator-core --help
 //!
@@ -11,6 +12,7 @@
 
 use std::process::ExitCode;
 
+use crate::obfsource;
 use crate::pipeline;
 
 fn print_help() {
@@ -22,10 +24,13 @@ fn print_help() {
     println!("обе версии — вывод обязан совпасть.");
     println!();
     println!("Использование:");
-    println!("  obfuscator-core -obf <файл.c> [-f имя_функции]");
-    println!("      обфусцировать одну функцию и запустить обе версии;");
-    println!("      без -f функция выбирается автоматически (крупнейшая");
-    println!("      помимо main/_start)");
+    println!("  obfuscator-core -obf <файл.c> [-f имя_функции] [-s зерно]");
+    println!("      полиморфно обфусцировать одну функцию и запустить обе");
+    println!("      версии; без -f функция выбирается автоматически");
+    println!("      (крупнейшая помимо main/_start); без -s зерно берётся");
+    println!("      из системных часов, поэтому каждый запуск даёт НОВЫЙ");
+    println!("      вариант кода с тем же поведением (полиморфизм);");
+    println!("      одинаковый -s — одинаковый вариант (воспроизводимость)");
     println!("  obfuscator-core inspect <файл.c>");
     println!("      скомпилировать файл и показать полный отчёт инспектора");
     println!("  obfuscator-core --help");
@@ -46,6 +51,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let mut cmd: Option<String> = None; // «-obf» или «inspect»
     let mut src: Option<String> = None; // путь к исходнику
     let mut func: Option<String> = None; // имя функции (-f)
+    let mut seed: Option<u64> = None; // зерно ГПСЧ (-s)
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
@@ -57,6 +63,19 @@ pub fn run(args: &[String]) -> ExitCode {
                     Some(f) => func = Some(f.clone()),
                     None => {
                         eprintln!("Ошибка: после ключа «{}» нужно указать имя функции.", args[i - 1]);
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+            "-s" | "--seed" => {
+                i += 1;
+                match args.get(i).and_then(|s| obfsource::parse_seed(s)) {
+                    Some(v) => seed = Some(v),
+                    None => {
+                        eprintln!(
+                            "Ошибка: после ключа «{}» нужно указать зерно (десятичное или 0x…).",
+                            args[i - 1]
+                        );
                         return ExitCode::FAILURE;
                     }
                 }
@@ -73,13 +92,13 @@ pub fn run(args: &[String]) -> ExitCode {
     }
     let Some(src) = src else {
         eprintln!("Ошибка: не указан файл с исходником на C.");
-        eprintln!("Использование: obfuscator-core -obf <файл.c> [-f имя]");
+        eprintln!("Использование: obfuscator-core -obf <файл.c> [-f имя] [-s зерно]");
         return ExitCode::FAILURE;
     };
 
     // Шаг 3: запуск сценария.
     match cmd.as_deref() {
-        Some("-obf") => pipeline::run_obf(&src, func.as_deref()),
+        Some("-obf") => pipeline::run_obf(&src, func.as_deref(), seed),
         Some("inspect") => {
             if func.is_some() {
                 eprintln!("Предупреждение: ключ -f при команде inspect игнорируется.");
@@ -88,7 +107,7 @@ pub fn run(args: &[String]) -> ExitCode {
         }
         _ => {
             eprintln!("Ошибка: не указана команда (-obf или inspect).");
-            eprintln!("Использование: obfuscator-core -obf <файл.c> [-f имя]");
+            eprintln!("Использование: obfuscator-core -obf <файл.c> [-f имя] [-s зерно]");
             ExitCode::FAILURE
         }
     }

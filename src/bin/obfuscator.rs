@@ -5,31 +5,36 @@
 //!   2. JSON инспектора с описанием функций ELF (имя, адрес, размер,
 //!      секция, смещение в файле) — «где расположена функция».
 //! Выбирает функцию (ключом -f или автоматически), находит её
-//! определение в исходнике и создаёт новый файл с переписанным телом:
-//! переименованные переменные, разложенные литералы, мёртвый код.
+//! определение в исходнике и создаёт новый файл с полиморфно
+//! переписанным телом: случайные имена переменных, разложенные на
+//! случайные выражения литералы, мёртвые блоки под непрозрачными
+//! предикатами. Зерно -s фиксирует вариант (воспроизводимость),
+//! без -s каждый запуск даёт новый вариант.
 //!
 //! Использование:
-//!   obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя_функции]
+//!   obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя_функции] [-s зерно]
 
 use std::process::ExitCode;
 
 use obfuscator_core::{csource, inspector, obfsource, pipeline};
 
 fn print_usage() {
-    eprintln!("Использование: obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя]");
+    eprintln!("Использование: obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя] [-s зерно]");
     eprintln!("Подробнее: obfuscator --help");
 }
 
 fn print_help() {
-    println!("Обфускатор исходника на C по данным инспектора ELF.");
+    println!("Обфускатор исходника на C по данным инспектора ELF (полиморфный режим).");
     println!();
     println!("Использование:");
-    println!("  obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя_функции]");
+    println!("  obfuscator <файл.c> <кандидаты.json> [-o выход.c] [-f имя_функции] [-s зерно]");
     println!();
     println!("Ключи:");
     println!("  -o, --out F   куда записать новый исходник (по умолчанию <файл>_obf.c)");
     println!("  -f, --func N  какую функцию обфусцировать (по умолчанию — крупнейшая");
     println!("                из кандидатов помимо main/_start, найденная в исходнике)");
+    println!("  -s, --seed N  зерно ГПСЧ: одинаковый N — одинаковый вариант, разные");
+    println!("                N — разные варианты; без ключа зерно берётся из часов");
     println!("  -h, --help    эта справка");
     println!();
     println!("JSON кандидатов создаёт elf-inspector: elf-inspector prog --json info.json");
@@ -42,11 +47,12 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    // ── Шаг 1. Аргументы: <файл.c> <json> [-o F] [-f N] ──
+    // ── Шаг 1. Аргументы: <файл.c> <json> [-o F] [-f N] [-s S] ──
     let mut cfile: Option<String> = None;
     let mut jfile: Option<String> = None;
     let mut out: Option<String> = None;
     let mut func: Option<String> = None;
+    let mut seed: Option<u64> = None;
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
@@ -66,6 +72,19 @@ fn main() -> ExitCode {
                     Some(f) => func = Some(f.clone()),
                     None => {
                         eprintln!("Ошибка: после ключа «{}» нужно указать имя функции.", args[i - 1]);
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+            "-s" | "--seed" => {
+                i += 1;
+                match args.get(i).and_then(|s| obfsource::parse_seed(s)) {
+                    Some(v) => seed = Some(v),
+                    None => {
+                        eprintln!(
+                            "Ошибка: после ключа «{}» нужно указать зерно (десятичное или 0x…).",
+                            args[i - 1]
+                        );
                         return ExitCode::FAILURE;
                     }
                 }
@@ -138,7 +157,7 @@ fn main() -> ExitCode {
     );
 
     // ── Шаг 4. Обфускация и запись нового исходника ──
-    let result = match obfsource::obfuscate(&src, &chosen.name) {
+    let result = match obfsource::obfuscate(&src, &chosen.name, seed) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("Обфускация не удалась: {}", e);
@@ -151,11 +170,19 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     println!(
+        "Зерно (seed): {} (0x{:016x}) — тот же seed даёт тот же файл",
+        result.seed, result.seed
+    );
+    println!(
         "Переименований: {} ({} вхождений), литералов разложено: {}, мёртвых блоков: {}",
         result.renames.len(),
         result.rename_hits,
         result.const_hits,
         result.dead_blocks
+    );
+    println!(
+        "Безвредных блоков под истинным предикатом: {}, мусорных комментариев: {}",
+        result.opaque_blocks, result.junk_comments
     );
     for (old, new) in &result.renames {
         println!("  {} → {}", old, new);

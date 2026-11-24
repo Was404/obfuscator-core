@@ -1,1 +1,5 @@
 /target
+
+error_log.txt
+log.txt
+samples/demo_obf.c
